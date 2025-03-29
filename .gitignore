@@ -1,0 +1,31 @@
+# Build folders
+Build/
+build/
+xcode/
+VisualStudio*/
+
+# IDE stuff
+*.user
+*.sdf
+*.opensdf
+*.vcxproj*
+*.csproj
+*.sln
+*.pbxproj
+*.xcworkspace
+*.idea/
+*.vscode/
+
+# Compiled binaries
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# System junk
+.DS_Store
+Thumbs.db
+*.log
