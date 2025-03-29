@@ -31,5 +31,5 @@ JuceLibraryCode/
 Thumbs.db
 *.log
 
-# Allow only the latest build to be committed
+# Except the final VST3 build
 !Builds/MacOSX/build/Debug/TransportSenderV1.vst3
