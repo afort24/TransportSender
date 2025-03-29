@@ -3,6 +3,7 @@ Build/
 build/
 xcode/
 VisualStudio*/
+JuceLibraryCode/
 
 # IDE stuff
 *.user
@@ -29,4 +30,6 @@ VisualStudio*/
 .DS_Store
 Thumbs.db
 *.log
-JuceLibraryCode/
+
+# Allow only the latest build to be committed
+!Builds/MacOSX/build/Debug/TransportSenderV1.vst3
