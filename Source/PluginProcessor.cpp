@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "OSCMessageSenderThread.h"
 //
 //==============================================================================
 
@@ -43,9 +44,21 @@ TransportSenderV1AudioProcessor::TransportSenderV1AudioProcessor()
     {
         DBG("Error: OSC Receiver failed to connect!");
     }
+
+    // Create and start the OSC sender thread
+    oscThread.reset(new OSCMessageSenderThread(oscSender, oscMessageQueue, oscQueueLock));
+    oscThread->startThread();
 }
 
-TransportSenderV1AudioProcessor::~TransportSenderV1AudioProcessor() {}
+TransportSenderV1AudioProcessor::~TransportSenderV1AudioProcessor()
+{
+    if (oscThread)
+    {
+        oscThread->signalThreadShouldExit();
+        oscThread->stopThread(100); // Wait up to 100 ms for it to stop
+    }
+}
+
 
 //==============================================================================
 // Plugin Metadata and Overrides
@@ -116,6 +129,9 @@ void TransportSenderV1AudioProcessor::changeProgramName(int index, const juce::S
 // Prepare to play
 void TransportSenderV1AudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
+    // Calculate the number of samples corresponding to ~33ms (30 fps)
+    samplesPerMessage = sampleRate / 30.0;
+    sampleCounter = 0.0;
     // Reconnect OSC Sender in case of issues
     if (!oscSender.connect("127.0.0.1", 8000))
     {
@@ -130,6 +146,7 @@ void TransportSenderV1AudioProcessor::releaseResources()
 }
 
 //==============================================================================
+
 // Update transport state and send OSC messages
 void TransportSenderV1AudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
@@ -142,7 +159,6 @@ void TransportSenderV1AudioProcessor::processBlock(juce::AudioBuffer<float>& buf
         {
             const auto& posInfo = *position;
 
-            // ✅ Use dereferencing as in your working code
             double newPpqPosition = posInfo.getPpqPosition().hasValue() ? *posInfo.getPpqPosition() : 0.0;
             double newBpm = posInfo.getBpm().hasValue() ? *posInfo.getBpm() : 120.0;
             bool newIsPlaying = posInfo.getIsPlaying();
@@ -162,34 +178,50 @@ void TransportSenderV1AudioProcessor::processBlock(juce::AudioBuffer<float>& buf
         }
     }
 
-    double currentTime = juce::Time::getMillisecondCounterHiRes();
+    // Accumulate the number of processed samples
+    sampleCounter += buffer.getNumSamples();
 
-    // ✅ Always send /play if play state changed
+    // If enough samples have passed (e.g. ~33ms worth), then queue up an OSC update
+    if (transportState.isPlaying && transportChanged && (sampleCounter >= samplesPerMessage))
+    {
+        // [We’ll push our OSC transport data to a thread-safe queue here instead of sending immediately]
+        OSCTransportMessage msg;
+        msg.isPlaying = transportState.isPlaying;
+        msg.tempo = static_cast<float>(transportState.bpm);
+        msg.position = static_cast<float>(transportState.ppqPosition);
+
+        {
+            const juce::ScopedLock lock(oscQueueLock);
+            oscMessageQueue.push(msg);
+        }
+
+        sampleCounter -= samplesPerMessage; // subtract the interval (or reset to 0)
+    }
+
+    // Always update /play immediately if play state changed
     if (playStateChanged)
     {
-        oscSender.send("/play", transportState.isPlaying ? 1 : 0);
-        DBG("Sent /play " + juce::String(transportState.isPlaying ? "1" : "0"));
+        // Push play state change as a separate OSC message if needed.
+        OSCTransportMessage playMsg;
+        playMsg.isPlaying = transportState.isPlaying;
+        playMsg.tempo = static_cast<float>(transportState.bpm);
+        playMsg.position = static_cast<float>(transportState.ppqPosition);
+
+        {
+            const juce::ScopedLock lock(oscQueueLock);
+            oscMessageQueue.push(playMsg);
+        }
     }
 
-    // ✅ Send tempo and position only when playing and throttled
-    if (transportState.isPlaying &&
-        transportChanged &&
-        (currentTime - lastOscSendTime) >= oscSendIntervalMs)
-    {
-        sendOSCMessages(); // sends /tempo and /position
-        lastOscSendTime = currentTime;
-    }
-
-    // ✅ Keep plugin alive with inaudible signal
+    // Keep plugin alive with inaudible signal
     for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
     {
         auto* channelData = buffer.getWritePointer(channel);
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-        {
             channelData[sample] = 0.0001f;
-        }
     }
 }
+
 
 
 

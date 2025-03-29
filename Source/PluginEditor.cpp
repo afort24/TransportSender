@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 
+
 // BPM Box
 void TransportSenderV1AudioProcessorEditor::paint(juce::Graphics& g)
 {
@@ -146,7 +147,7 @@ TransportSenderV1AudioProcessorEditor::TransportSenderV1AudioProcessorEditor(Tra
     
     // Initialize plugin title label
     addAndMakeVisible(pluginTitle);
-    pluginTitle.setText("ReWire Solution VST3 - (Host) - Prototype V1", juce::dontSendNotification);
+    pluginTitle.setText("Transport Sender - Prototype", juce::dontSendNotification);
     pluginTitle.setJustificationType(juce::Justification::left);
     pluginTitle.setFont(juce::Font(20.0f, juce::Font::plain));
     pluginTitle.setColour(juce::Label::textColourId, juce::Colours::goldenrod);

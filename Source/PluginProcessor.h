@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include <juce_osc/juce_osc.h>
 #include <juce_audio_processors/juce_audio_processors.h>
+#include "OSCMessageSenderThread.h"
 
 
 class TransportSenderV1AudioProcessor :public juce::AudioProcessor, public juce::OSCReceiver, public juce::OSCReceiver::ListenerWithOSCAddress<juce::OSCReceiver::MessageLoopCallback>
@@ -21,7 +22,7 @@ public:
     void oscMessageReceived(const juce::OSCMessage& message) override;
 
     
-    void updateOscMessageLabel();
+    // void updateOscMessageLabel();
     
     
     void setPlayingState(bool isPlaying);
@@ -57,8 +58,8 @@ public:
     juce::OSCSender& getOscSender() { return oscSender; } // Getter function to expose the oscSender
 
     bool isOscConnected() const { return oscConnected; } // expose getter function
-    void setOscPort(int port) { oscPort = port; } // METHOD TO SET AND GET THE PORT # chagtpt
-    int getOscPort() const { return oscPort; } // METHOD TO SET AND GET THE PORT # chagtpt
+    void setOscPort(int port) { oscPort = port; } // METHOD TO SET AND GET THE PORT
+    int getOscPort() const { return oscPort; } // METHOD TO SET AND GET THE PORT
     
     juce::String getLastOscMessage() const
     {
@@ -125,8 +126,24 @@ private:
     
     TransportState transportState;
 
-    void updateTransportState();
+    // void updateTransportState();
+
+    //edits: variables for: accumalating sample, threshold
+    double sampleCounter = 0.0;
+    double samplesPerMessage = 0.0;
+
+    //new:
+    // For the message queue and its synchronization:
+    std::queue<OSCTransportMessage> oscMessageQueue;
+    juce::CriticalSection oscQueueLock;
+
+    // Pointer for the OSC sender thread:
+    std::unique_ptr<OSCMessageSenderThread> oscThread;
+
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TransportSenderV1AudioProcessor)
 };
+
+
+
